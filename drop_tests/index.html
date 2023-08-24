@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three js earth</title>
+    <style>
+        body{
+            margin: 0;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0);
+        }
+    </style>
+</head>
+
+<body>
+    
+    <canvas class="webgl"></canvas>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous"></script>
+    <script type="module">
+        
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+        
+        const camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 500 );
+        camera.position.set( 0, 0, 100 );
+        camera.lookAt( 0, 0, 0 );
+        
+        const scene = new THREE.Scene();
+        
+        //create a blue LineBasicMaterial
+        const material = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+        
+        // point light
+        const pointLight = new THREE.PointLight(0xffffff, 1)
+        pointLight.position.set(0, 0, 5);
+        scene.add(pointLight);
+        
+        const points = [];
+        points.push( new THREE.Vector3( - 10, 0, 0 ) );
+        points.push( new THREE.Vector3( 0, 10, 0 ) );
+        points.push( new THREE.Vector3( 10, 0, 0 ) );
+        
+        const geometry = new THREE.BufferGeometry().setFromPoints( points );
+        
+        const line = new THREE.Line( geometry, material );
+        
+        scene.add( line );
+        // handling resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            render();
+        }, false);
+
+        // main loop
+        function render(time) {
+            renderer.render(scene, camera);
+            requestAnimationFrame(render);
+        }
+        render();
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,12 @@
+digraph "packages" {
+rankdir=BT
+charset="utf-8"
+"drop_tests" [color="black", label=<drop_tests>, shape="box", style="solid"];
+"drop_tests.drop_test_sim" [color="black", label=<drop_tests.drop_test_sim>, shape="box", style="solid"];
+"drop_tests.main" [color="black", label=<drop_tests.main>, shape="box", style="solid"];
+"drop_tests.setup" [color="black", label=<drop_tests.setup>, shape="box", style="solid"];
+"drop_tests.test_vis" [color="black", label=<drop_tests.test_vis>, shape="box", style="solid"];
+"drop_tests.visual" [color="black", label=<drop_tests.visual>, shape="box", style="solid"];
+"drop_tests.main" -> "drop_tests.drop_test_sim" [arrowhead="open", arrowtail="none"];
+"drop_tests.visual" -> "drop_tests.drop_test_sim" [arrowhead="open", arrowtail="none"];
+}
