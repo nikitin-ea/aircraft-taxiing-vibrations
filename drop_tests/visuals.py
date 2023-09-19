@@ -20,14 +20,14 @@ test_cond = {"path_to_params": r"C:/Users/devoi/Thesis/Git/aircraft-taxiing-vibr
 
 path_to_results = os.getcwd() + r"\results_data"
 
-dtc = DropTestModelCase(test_cond, 8)
+dtc = DropTestModel(test_cond, 8)
 
 result = dtc.get_result()
 
 tt = result.t
 axle_position = result.axle_position
 lg_model = dtc.landing_gear
-    
+
 ###############################################################################
 
 SCENE_HEIGHT = 600
@@ -53,15 +53,15 @@ ORIGIN_SPHERE_RADIUS = 50.0
 class Tyre3DModel():
     def __init__(self, pos, axis, param):
         self.model_3d = vpy.ring()
-        
-    
-    
+
+
+
 ###############################################################################
-tyre_radius = (lg_model.tyre_model.param["forcing"]["R_t"] - 
+tyre_radius = (lg_model.tyre_model.param["forcing"]["R_t"] -
                lg_model.tyre_model.param["forcing"]["R_w"])
 tyre_thickness = lg_model.tyre_model.param["forcing"]["R_w"]
 
-disk_radius = (DISK_RADIUS_COEFF * 
+disk_radius = (DISK_RADIUS_COEFF *
                (tyre_radius - lg_model.tyre_model.param["forcing"]["R_w"]))
 axle_radius = AXLE_RADIUS_COEFF * disk_radius
 
@@ -69,7 +69,7 @@ angle = lg_model.strut_model.strut.param["explicit"]["alpha"]
 
 piston_radius = lg_model.strut_model.strut.param["forcing"]["d1"] / 2
 piston_thickness = ((lg_model.strut_model.strut.param["forcing"]["d1"] -
-                     lg_model.strut_model.strut.param["forcing"]["d2"]) / 
+                     lg_model.strut_model.strut.param["forcing"]["d2"]) /
                     (2 * piston_radius))
 piston_length = lg_model.strut_model.strut.param["forcing"]["a"]
 
@@ -77,7 +77,7 @@ wheel_offset = (piston_radius + tyre_thickness + WHEEL_OFFSET)
 
 cylinder_radius = CYL_RADIUS_COEFF * piston_radius
 cylinder_thickness = 1 - 1 / CYL_RADIUS_COEFF
-cylinder_length = (lg_model.strut_model.strut.param["explicit"]["L"] - 
+cylinder_length = (lg_model.strut_model.strut.param["explicit"]["L"] -
                    piston_length)
 
 ###############################################################################
@@ -85,9 +85,9 @@ for obj in vpy.scene.objects:
     obj.visible = False
 
 vpy.scene.background = vpy.color.white
-vpy.scene.center = vpy.vector(0.0, 0.5 * (cylinder_length + 
-                                               piston_length + 
-                                               tyre_radius + 
+vpy.scene.center = vpy.vector(0.0, 0.5 * (cylinder_length +
+                                               piston_length +
+                                               tyre_radius +
                                                tyre_thickness), -200.0)
 vpy.scene.forward = vpy.vector(-0.6, -0.6, -1.2)
 vpy.scene.up = vpy.vector(0.0, 1.0, 0.0)
@@ -99,21 +99,21 @@ vpy.scene.height = SCENE_HEIGHT
 ###############################################################################
 plane = vpy.box(pos=vpy.vector(0.0, 0.0, 0.0),
                 up=vpy.vector(0.0 , 1.0, 0.0),
-                length=PLANE_LEN, 
-                height=PLANE_HEIGHT, 
+                length=PLANE_LEN,
+                height=PLANE_HEIGHT,
                 width=PLANE_WIDTH,
                 texture="tsupii.png")
 
 tyre_1 = vpy.ring(pos=vpy.vector(0.0, axle_position[0], wheel_offset),
                   axis=vpy.vector(0.0, 0.0, 1.0),
-                  radius=tyre_radius, 
+                  radius=tyre_radius,
                   thickness=tyre_thickness,
                   color=vpy.color.gray(TYRE_COLOR_GRAY_RATIO),
                   shininess=TYRE_SHININESS)
 
 tyre_2 = vpy.ring(pos=vpy.vector(0.0, axle_position[0], -wheel_offset),
                   axis=vpy.vector(0.0, 0.0, 1.0),
-                  radius=tyre_radius, 
+                  radius=tyre_radius,
                   thickness=tyre_thickness,
                   color=vpy.color.gray(TYRE_COLOR_GRAY_RATIO),
                   shininess=TYRE_SHININESS)
@@ -138,40 +138,40 @@ axle = vpy.cylinder(pos=vpy.vector(0.0, axle_position[0], -wheel_offset),
                     color=vpy.color.white,
                     shininess=METAL_SHININESS)
 
-piston = vpy.extrusion(path=[vpy.vec(0.0, 0.0, 0.0), 
+piston = vpy.extrusion(path=[vpy.vec(0.0, 0.0, 0.0),
                              vpy.vec(piston_length * np.sin(angle),
                                      piston_length * np.cos(angle),
-                                     0.0)], 
-                       shape=vpy.shapes.circle(radius=piston_radius, 
+                                     0.0)],
+                       shape=vpy.shapes.circle(radius=piston_radius,
                                                thickness=piston_thickness),
                        pos=vpy.vec(0.5 * piston_length * np.sin(angle),
-                                   (axle_position[0] + 
+                                   (axle_position[0] +
                                     0.5 * piston_length * np.cos(angle)),
                                    0.0),
                        color=vpy.color.white,
                        shininess=METAL_SHININESS)
 
-cylinder = vpy.extrusion(path=[vpy.vec(0.0, 0.0, 0.0), 
+cylinder = vpy.extrusion(path=[vpy.vec(0.0, 0.0, 0.0),
                                vpy.vec(cylinder_length * np.sin(angle),
                                        cylinder_length * np.cos(angle),
-                                       0.0)], 
-                         shape=vpy.shapes.circle(radius=cylinder_radius, 
+                                       0.0)],
+                         shape=vpy.shapes.circle(radius=cylinder_radius,
                                                thickness=cylinder_thickness),
-                         pos=vpy.vec(((0.5 * cylinder_length + piston_length) * 
+                         pos=vpy.vec(((0.5 * cylinder_length + piston_length) *
                                     np.sin(angle)),
                                    (axle_position[0] +
-                                    (0.5 * cylinder_length + piston_length) * 
+                                    (0.5 * cylinder_length + piston_length) *
                                     np.cos(angle)),
                                    0.0),
                          color=vpy.color.blue,
                          shininess=METAL_SHININESS)
 
 cage = vpy.extrusion(path=vpy.paths.arc(radius=2000,
-                                        angle1=-vpy.pi/3, 
-                                        angle2=vpy.pi/3), 
+                                        angle1=-vpy.pi/3,
+                                        angle2=vpy.pi/3),
                      shape=vpy.shapes.trapezoid(pos=[0.0, 0.0],
                                                 width=500, height=1500),
-                     pos=vpy.vector(((cylinder_length + piston_length) * 
+                     pos=vpy.vector(((cylinder_length + piston_length) *
                                      np.sin(angle)),
                                     result.y[0][0] + 0.5 * CAGE_HEIGHT,
                                     0.0),
@@ -180,27 +180,27 @@ cage = vpy.extrusion(path=vpy.paths.arc(radius=2000,
                      shininess=1.0)
 
 
-# vpy.box(pos=vpy.vec(((cylinder_length + piston_length) * 
+# vpy.box(pos=vpy.vec(((cylinder_length + piston_length) *
 #                             np.sin(angle)),
 #                             result[0][0] + 0.5 * CAGE_HEIGHT,
 #                            0.0),
 #                 up=vpy.vector(0.0, 1.0, 0.0),
-#                 length=CAGE_LENGTH, 
-#                 height=CAGE_HEIGHT, 
+#                 length=CAGE_LENGTH,
+#                 height=CAGE_HEIGHT,
 #                 width=CAGE_WIDTH,
 #                 texture=vpy.textures.stucco,
 #                 shininess=0.0)
 
 pointer_x = vpy.arrow(pos=vpy.vector(0.5 * PLANE_LEN, 0.0, -0.5 * PLANE_WIDTH),
-                      axis=vpy.vector(-ARROW_LENGTH,0.0, 0.0), 
+                      axis=vpy.vector(-ARROW_LENGTH,0.0, 0.0),
                       shaftwidth=ARROW_WIDTH,
                       color=vpy.color.red)
 pointer_y = vpy.arrow(pos=vpy.vector(0.5 * PLANE_LEN, 0.0, -0.5 * PLANE_WIDTH),
-                      axis=vpy.vector(0.0, ARROW_LENGTH, 0.0), 
+                      axis=vpy.vector(0.0, ARROW_LENGTH, 0.0),
                       shaftwidth=ARROW_WIDTH,
                       color=vpy.color.green)
 pointer_z = vpy.arrow(pos=vpy.vector(0.5 * PLANE_LEN, 0.0, -0.5 * PLANE_WIDTH),
-                      axis=vpy.vector(0.0 ,0.0, ARROW_LENGTH), 
+                      axis=vpy.vector(0.0 ,0.0, ARROW_LENGTH),
                       shaftwidth=ARROW_WIDTH,
                       color=vpy.color.blue)
 origin = vpy.sphere(pos=vpy.vector(0.5 * PLANE_LEN, 0.0, -0.5 * PLANE_WIDTH),
@@ -253,7 +253,7 @@ Cage Mass: {test_cond["cage_mass_t"]:3.2f} tonn
 Installation angle: {test_cond["angle_deg"]:3.2f}°
 State time: {time:2.2f} sec
 """
-    
+
 display_state_label(0.0)
 
 #cage.visible = False
@@ -284,9 +284,9 @@ def run(b):
     running = not running
     if running:
         b.text = "Stop"
-        play_simulation(b)  
+        play_simulation(b)
     else: b.text = "Run"
-    
+
 def set_state(slider):
     t = slider.value
     axle_pos_t = np.interp(t, tt, axle_position)
@@ -299,6 +299,6 @@ def set_state(slider):
 
 button_start = vpy.button(text="Run", pos=vpy.scene.title_anchor, bind=run)
 vpy.wtext(text="    State   ", pos=vpy.scene.title_anchor)
-slider_time = vpy.slider(length=200, left=10, min=0, max=tt[-1], 
+slider_time = vpy.slider(length=200, left=10, min=0, max=tt[-1],
                          pos=vpy.scene.title_anchor, bind=set_state)
 text_caption = vpy.wtext(text=f"  {tt[-1]}   ", pos=vpy.scene.title_anchor)

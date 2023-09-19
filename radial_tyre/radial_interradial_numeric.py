@@ -48,6 +48,7 @@ class BadalamentiTyre():
             self.force_radial_array[i] = radial_force + interradial_force
             
     def residual(self, vertical_load):
+        pass
         
         
         

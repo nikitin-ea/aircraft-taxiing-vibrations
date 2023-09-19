@@ -1,15 +1,8 @@
-import os
 import sys
-import glob
 import time
 from enum import IntEnum
 
-import sympy.physics.mechanics as me
 import numpy as np
-import matplotlib.pyplot as plt
-import scienceplots
-import natsort
-
 from scipy.integrate import solve_ivp, _ivp
 
 if r"C:\Users\devoi\Thesis\dev\aircraft-taxiing-vibrations\models" not in sys.path: #for .pyx import
@@ -17,7 +10,6 @@ if r"C:\Users\devoi\Thesis\dev\aircraft-taxiing-vibrations\models" not in sys.pa
 if r"C:\Users\devoi\Thesis\dev\aircraft-taxiing-vibrations\utils" not in sys.path: #for .pyx import
     sys.path.append(r"C:\Users\devoi\Thesis\dev\aircraft-taxiing-vibrations\utils")
 
-from text_utils import print_msg
 from landing_gear_model import LandingGearModel
 
 try:
@@ -26,15 +18,10 @@ try:
     from dll.distance_to_axle_func import eval as get_distance_to_axle
     from dll.velocity_to_axle_func import eval as get_velocity_to_axle
 except ModuleNotFoundError as exc:
-    print_msg(f"{exc}: Landing gear dynamic libraries not created.")
     sys.exit()
 except ImportError as exc:
-    print_msg(f"{exc}: Import of landing gear dynamic libraries not possible.")
     sys.exit()
 
-#################################global set-up#################################
-me.init_vprinting(use_latex='mathjax') # Printing in IPython console
-plt.style.use(['science', 'ieee', 'russian-font'])
 np.set_printoptions(precision=3, suppress=True)
 
 class State(IntEnum):
@@ -48,64 +35,34 @@ class State(IntEnum):
     DPHIDT = 7
     S = 8
 
+
 class CustomResult(_ivp.ivp.OdeResult):
-    TEST_DATA_NAMES = ("cg_displacement", "strut_closure", "vertical_load")
     ATTRIBUTE_NAMES = ("y", "u", "vertical_load")
     def __init__(self):
         super().__init__(self)
         self.t = np.array([])
         self.y = np.array([])
-        self.t_y_test = np.array([])
-        self.y_test = np.array([])
-        self.t_u_test = np.array([])
-        self.u_test = np.array([])
-        self.t_vertical_load_test = np.array([])
-        self.vertical_load_test = np.array([])
-        self.t_horizontal_load_test = np.array([])
-        self.horizontalload_test = np.array([])
-
-    def load_test_data(self, filename):
-        with open(filename) as file:
-            temp = np.loadtxt(file)
-        for data_name, attr_name in zip(self.TEST_DATA_NAMES,
-                                        self.ATTRIBUTE_NAMES):
-            if data_name in filename:
-                if attr_name == "u":
-                    self.t_u_test = temp[:,0]
-                    self.u_test = temp[:,1]
-                elif attr_name == "vertical_load":
-                    self.t_vertical_load_test = temp[:,0]
-                    self.vertical_load_test = temp[:,1]
-                elif attr_name == "y":
-                    self.t_y_test = temp[:,0]
-                    self.y_test = temp[:,1]
-                else:
-                    continue
-
-    def load_files(self, filenames):
-        for filename in filenames:
-            self.load_test_data(filename)
 
 
 class DropTestModel():
-    DEFAULT_NUMPTS = 1000
     PRINTEVERY = 1000
     INIT_HEIGHT = 5.0
-    KJ_COEFF = 1e6
+    KJ_COEFF = 1.0e6
+    KMH2MMS_COEFF = 1000.0 / 3.6
     EVENTS = ("tyre_fall", "tyre_rise", "piston_fall", "piston_rise")
-    def __init__(self, setup_dict, t_end):
-        self._num_pts = self.DEFAULT_NUMPTS
-        self._setup = setup_dict
-        self._evaln = 0
+    def __init__(self, setup_dict, logger, progress_bar):
+        setup_dict = self.change_strut_angle(setup_dict)
+
+        self.landing_gear = LandingGearModel(setup_dict["strut-parameters"],
+                                             setup_dict["tyre-parameters"])
         self.result = CustomResult()
-        self.time_span = t_end
+        self.setup = setup_dict["test-parameters"]
+        self.time_span = np.linspace(0.0, self.setup["termination-s"],
+                                     self.setup["num-points"])
+        self.logger = logger
+        self.progress_bar = progress_bar
 
-        strut_json_name = rf"{setup_dict['lg_type']}_properties.json"
-        tyre_json_name = rf"{setup_dict['lg_type']}_tyre_properties.json"
-        strut_path = self.setup["path_to_params"] + "/" + strut_json_name
-        tyre_path = self.setup["path_to_params"] + "/" + tyre_json_name
-
-        self.landing_gear = LandingGearModel(strut_path, tyre_path)
+        self._evaln = 0
 
     @property
     def setup(self):
@@ -115,40 +72,10 @@ class DropTestModel():
         self._setup = setup_dict
 
     @property
-    def time_span(self):
-        return self._time_span
-    @time_span.setter
-    def time_span(self, t_end):
-        self._time_span = np.linspace(0.0, t_end, self.num_pts)
-
-    @property
-    def num_pts(self):
-        return self._num_pts
-    @num_pts.setter
-    def num_pts(self, num):
-        self._num_pts = num
-
-    @property
-    def filename(self):
-        self._filename = "DT-"
-        delim = "-"
-        sep = "_"
-        for key, value in self.setup.items():
-            if key == "path_to_params":
-                continue
-            self._filename += key + delim + str(value) + sep
-        return self._filename[:-1]
-
-    @staticmethod
-    def change_strut_angle(setup_dict):
-        new_angle = setup_dict["test-parameters"]["setup-angle"]
-        setup_dict["strut-parameters"]["explicit"]["alpha"] = new_angle
-        return setup_dict
-
-    @property
     def initial_conditions(self):
-        impact_energy = self.setup["impact_energy_kJ"] * self.KJ_COEFF
-        cage_mass = self.setup["cage_mass_t"]
+        impact_energy = self.setup["impact-energy-kJ"] * self.KJ_COEFF
+        cage_mass = self.setup["cage-mass-t"]
+        init_spinup = self.setup["spinup-kmh"] * self.KMH2MMS_COEFF
         init_vel = np.sqrt(2 * impact_energy /
                            (cage_mass +
                          self.landing_gear.tyre.param["explicit"]["m1"]))
@@ -156,12 +83,21 @@ class DropTestModel():
         np.cos(self.landing_gear.strut.param["explicit"]["alpha"]) +
         self.landing_gear.tyre.param["forcing"]["R_t"])
 
+        init_spinup_rads = (init_spinup /
+                            self.landing_gear.tyre.param["forcing"]["R_t"])
+
         q0 = np.array([init_length+self.INIT_HEIGHT, 0.0, 0.0, 0.0],
                       dtype = np.float64)
-        u0 = np.array([-init_vel, 0.0, 0.0, 0.0 , 0.0],
+        u0 = np.array([-init_vel, 0.0, 0.0, init_spinup_rads, 0.0],
                       dtype = np.float64)
         z0 = np.hstack((q0, u0))
         return z0
+
+    @staticmethod
+    def change_strut_angle(setup_dict):
+        new_angle = setup_dict["test-parameters"]["setup-angle"]
+        setup_dict["strut-parameters"]["explicit"]["alpha"] = new_angle
+        return setup_dict
 
     def detect_tyre_contact(self, direction):
         def tyre_deflection(t, z):
@@ -188,14 +124,10 @@ class DropTestModel():
         return piston_event
 
     def get_events_list(self):
-        tyre_event_fall = self.detect_tyre_contact(-1)
-        tyre_event_rise = self.detect_tyre_contact(1)
-        piston_event_fall = self.detect_piston_stop(-1)
-        piston_event_rise = self.detect_piston_stop(1)
-        return [tyre_event_fall,
-                 tyre_event_rise,
-                 piston_event_fall,
-                 piston_event_rise]
+        return [self.detect_tyre_contact(-1),
+                self.detect_tyre_contact(1),
+                self.detect_piston_stop(-1),
+                self.detect_piston_stop(1)]
 
     def compute_mass_matrix(self, q, U):
         Mres = np.zeros((self.landing_gear.NDOF**2, ),
@@ -234,12 +166,9 @@ class DropTestModel():
 
         Fsum = self.landing_gear.strut.force_total_axial
         Fv = self.landing_gear.strut.force_bending
-        Fx = (self.landing_gear.WHEELS_NUM *
-              self.landing_gear.tyre.horizontal_force)
-        Fy = (self.landing_gear.WHEELS_NUM *
-              self.landing_gear.tyre.vertical_force)
-        Mz = (self.landing_gear.WHEELS_NUM *
-              self.landing_gear.tyre.braking_torque)
+        Fx = 0.0
+        Fy = 2 * self.landing_gear.tyre.vertical_force
+        Mz = 0.0
         Fa = self.landing_gear.lift_force(q[State.Y])
 
         F_models = np.array([Fsum, Fv, Fx, Fy, Mz, Fa]).flatten(order='C')
@@ -290,10 +219,11 @@ class DropTestModel():
         U = z[N:-1]
 
         if self._evaln % self.PRINTEVERY == 0:
-            print_msg(f"eval: {self._evaln:5d}; "
-                      f"t: {t:3.2f} s; "
-                      f"q: {q}")
-
+            self.logger.print_message(f"eval: {self._evaln:5d}; "
+                                      f"t: {t:3.2f} s; "
+                                      f"q: {q}")
+            self.progress_bar.update(total=100,
+                                     progress=t / self.time_span[-1] * 100)
         self._evaln += 1
 
         M = self.compute_mass_matrix(q, U)
@@ -305,7 +235,9 @@ class DropTestModel():
 
     def integrate(self):
         events_list = self.get_events_list()
-        print_msg("                               y        u        v        φ")
+        self.logger.print_message(
+            '                               y        u        v       phi'
+        )
         self.result = solve_ivp(self.system_eqns_rhs,
                            y0=self.initial_conditions,
                            t_span=(0, self.time_span[-1]),
@@ -314,28 +246,34 @@ class DropTestModel():
                            method="LSODA")
 
     def postprocess(self):
-        self.result.axle_position = np.zeros((self.result.y.shape[1], ))
-        self.result.tyre_deflection = np.zeros((self.result.y.shape[1], ))
-        self.result.vertical_force = np.zeros((self.result.y.shape[1], ))
+        N = self.landing_gear.NDOF
+        num_points = self.result.y.shape[1]
+        axle_position = np.zeros((num_points, ))
+        horizontal_force = np.zeros((num_points, ))
+        vertical_force = np.zeros((num_points, ))
+        braking_torque = np.zeros((num_points, ))
+        pressure = np.zeros((num_points, ))
+
         for i, zi in enumerate(self.result.y.T):
-            N = int(zi.shape[0]/2)
             qi = np.ascontiguousarray(zi[:N], dtype=np.float64)
             Ui = np.ascontiguousarray(zi[N:-1], dtype=np.float64)
-            y1res = np.zeros((3,), order='C', dtype=np.float64)
-            dy1dtres = np.zeros((3,), order='C', dtype=np.float64)
-            self.result.axle_position[i] = get_distance_to_axle(qi,
-                self.landing_gear.param_val_list,
-                y1res)[0]
-            dy1dt = get_velocity_to_axle(qi,
-                                         Ui,
-                                         self.landing_gear.param_val_list,
-                                         dy1dtres)[0]
-            self.landing_gear.tyre.calculate_deflection(
-            self.result.axle_position[i], -dy1dt)
-            self.result.tyre_deflection[i] = self.landing_gear.tyre.deflection
+            yi, dy1dti = self.compute_axle_kinematics(qi, Ui)
 
-            self.result.vertical_force[i] = (2 *
-                self.landing_gear.tyre.vertical_force)
+            self.landing_gear.tyre.calculate_deflection(yi, -dy1dti)
+            self.landing_gear.strut.set_state([qi[State.U], qi[State.V],
+                                               Ui[State.U], Ui[State.V]])
+
+            axle_position[i] = yi
+            horizontal_force[i] = 2 * self.landing_gear.tyre.horizontal_force
+            vertical_force[i] = 2 * self.landing_gear.tyre.vertical_force
+            braking_torque[i] = 0.0 #TODO: calculate in tyre model as computed attribute and return here
+            pressure[i] = self.landing_gear.strut.gas_pressure
+
+        self.result.axle_position = axle_position
+        self.result.horizontal_force = horizontal_force
+        self.result.vertical_force = vertical_force
+        self.result.braking_torque = braking_torque
+        self.result.pressure = pressure
 
     def process_events(self):
         self.events_dict = {
@@ -346,42 +284,16 @@ class DropTestModel():
         }
 
     def get_result(self):
-        print_msg("Integrating...")
+        self.logger.print_message("Интегрирование...")
         tic = time.perf_counter()
         self.integrate()
         toc = time.perf_counter()
-        print_msg(f"Integration took {toc-tic:3.2f} s. Postproccessing...")
+        self.logger.print_message(f"Интегрирование заняло {toc-tic:3.2f} s. "
+                                  f"Обработка результатов...")
+        self.progress_bar.update(total=100, progress=100)
         tic = time.perf_counter()
         self.postprocess()
         self.process_events()
         toc = time.perf_counter()
-        print_msg("Postproccessing is done.")
-        print_msg(f"Postprocessing took {toc-tic:3.2f} s.")
+        self.logger.print_message("Обработка результатов завершена.")
         return self.result
-
-    def load_file(self, filename):
-        try:
-            temp = np.load(filename)
-        except ValueError as exc:
-            print(f"{exc}: cannot load binary file!")
-            return
-        print(f"Загружена реализация размерностью "
-                f"{temp[1:].shape[0]}×{temp[1:].shape[1]} "
-                f"({(temp[1:].size * temp[1:].itemsize / 1024):3.2f} кБ).")
-        self.result.t = temp[0]
-        self.result.y = temp[1:]
-
-    def save_data(self, path):
-        data = np.vstack((self.result.t, self.result.y))
-
-        with open(path + "\\" + self.filename + ".npy", 'wb') as file:
-            np.save(file, data)
-
-###############################################################################
-if __name__ == "__main__":
-    setup = {"path_to_params": r"C:/Users/devoi/Thesis/dev/aircraft-taxiing-vibrations/parameters_data",
-             "lg_type": "MLG",
-             "impact_energy_kJ": 242,
-             "cage_mass_t": 33.9,
-             "angle_deg": 2.5}
-    drop_test = DropTestModel(setup, 1.5)
